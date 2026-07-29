@@ -1,13 +1,13 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ProductCreate(BaseModel):
     sku: str = Field(min_length=1, max_length=50)
     name: str = Field(min_length=1, max_length=200)
     unit_price: float = Field(gt=0)
-    reorder_threshold: int = 0
+    reorder_threshold: int = Field(default=0, ge=0)
 
 
 class ProductRead(BaseModel):
@@ -40,4 +40,28 @@ class StockMovementRead(BaseModel):
     warehouse_id: int
     quantity_change: int
     reason: str
+    created_at: datetime
+
+
+class StockTransferCreate(BaseModel):
+    product_id: int
+    source_warehouse_id: int
+    destination_warehouse_id: int
+    quantity: int = Field(gt=0, description="Amount to move; must be positive")
+
+    @model_validator(mode="after")
+    def check_different_warehouses(self):
+        if self.source_warehouse_id == self.destination_warehouse_id:
+            raise ValueError("source_warehouse_id and destination_warehouse_id must differ")
+        return self
+
+
+class StockTransferRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    product_id: int
+    source_warehouse_id: int
+    destination_warehouse_id: int
+    quantity: int
     created_at: datetime

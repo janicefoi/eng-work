@@ -1,30 +1,16 @@
-from datetime import datetime
-
-from fastapi import APIRouter, Depends, HTTPException, Response
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
-from . import models, schemas, services
+from . import schemas, services
 from .database import get_db
-
-# Captured when the module is first imported. Used as a fallback timestamp
-# when a request does not carry one of its own.
-SERVICE_STARTUP_TIME = datetime.utcnow()
 
 router = APIRouter()
 
 
 @router.post("/products", response_model=schemas.ProductRead, status_code=201)
 def create_product(data: schemas.ProductCreate, db: Session = Depends(get_db)):
-    # Pre-check SKU uniqueness so we return a friendly 409 instead of a 500
-    # surfaced from the database unique constraint.
-    existing = db.scalar(select(models.Product).where(models.Product.sku == data.sku))
-    if existing is not None:
-        raise HTTPException(409, f"Product with SKU '{data.sku}' already exists")
-
     service = services.ProductService(db)
-    product = service.create_product(data)
-    return product
+    return service.create_product(data)
 
 
 @router.get("/products", response_model=list[schemas.ProductReadWithStock])
@@ -47,9 +33,12 @@ def list_products(db: Session = Depends(get_db)):
     "/products/low-stock",
     response_model=list[schemas.ProductReadWithStock],
 )
-def list_low_stock(db: Session = Depends(get_db)):
+def list_low_stock(
+    margin: int = Query(0, ge=0, description="Extra buffer above the reorder threshold"),
+    db: Session = Depends(get_db),
+):
     service = services.ProductService(db)
-    items = service.find_low_stock()
+    items = service.find_low_stock(margin=margin)
     return [
         schemas.ProductReadWithStock.model_validate(
             {
@@ -73,3 +62,13 @@ def adjust_stock(data: schemas.StockAdjustment, db: Session = Depends(get_db)):
     if movement is None:
         return Response(status_code=200)
     return movement
+
+
+@router.post(
+    "/stocks/transfers",
+    response_model=schemas.StockTransferRead,
+    status_code=201,
+)
+def transfer_stock(data: schemas.StockTransferCreate, db: Session = Depends(get_db)):
+    service = services.StockService(db)
+    return service.transfer_stock(data)

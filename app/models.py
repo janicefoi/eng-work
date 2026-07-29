@@ -45,3 +45,16 @@ class StockMovement(Base):
     quantity_change: Mapped[int]
     reason: Mapped[str]
     created_at: Mapped[datetime]
+
+
+class StockTransfer(Base):
+    __tablename__ = "stock_transfers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    source_warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"))
+    destination_warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"))
+    quantity: Mapped[int]
+    created_at: Mapped[datetime] = mapped_column(
+        default=lambda: datetime.now(timezone.utc),
+    )
